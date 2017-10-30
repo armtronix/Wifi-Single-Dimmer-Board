@@ -282,9 +282,11 @@ void webHandleClearRom(){
 
 void webHandleGpio(){
   String s;
+  int state_sw ;
+  int state_dimmer;
    // Set GPIO according to the request
     if (server.arg("state_sw")=="1" || server.arg("state_sw")=="0" ) {
-      int state_sw = server.arg("state_sw").toInt();
+      state_sw = server.arg("state_sw").toInt();
 //      detachInterrupt(AC_ZERO_CROSS);
 //      digitalWrite(OUTPIN_TRIAC, state_sw);
      
@@ -300,53 +302,20 @@ void webHandleGpio(){
       }
           
     }
-//     if (server.arg("state_led")=="1" || server.arg("state_led")=="0" ) {
-//      int state_led = server.arg("state_led").toInt();
-//      digitalWrite(OUTPIN_SSR, state_led);
-//      Serial.print("Light switched via web request to  ");      
-//      Serial.println(state_led);
-//      Serial.print("R_1 switched via web request to ");
-//      Serial.println(state_led);      
-//    }
    if (server.arg("state_dimmer") !="") {
-      int state_dimmer = server.arg("state_dimmer").toInt();
-      //digitalWrite(BUILTIN_LED, state_led);
-     // Serial.print("Light switched via web request to  "); 
+      state_dimmer = server.arg("state_dimmer").toInt();
       Serial.print("Dimmer:");     
       Serial.println(state_dimmer); 
-//      dimming =127-state_dimmer;
-//      delay(5); 
-//      if(dimming>=120)
-//      {
-//      detachInterrupt(AC_ZERO_CROSS);
-//      digitalWrite(OUTPIN_TRIAC, LOW);
-//      }
-//      else if(dimming<=10)
-//      {
-//      detachInterrupt(AC_ZERO_CROSS);
-//      digitalWrite(OUTPIN_TRIAC, HIGH);
-//      }
-//      else
-//      {
-//      attachInterrupt(AC_ZERO_CROSS, zero_crosss_int, RISING); 
-//      }   
+      delay(5);   
     }
      
     s = "TRIAC is now ";
-    s += (digitalRead(OUTPIN_TRIAC))?"ON":"OFF";
+    s += (state_dimmer)?"ON":"OFF";
     s += "<p>Change to <form action='gpio'><input type='radio' name='state_sw' value='1' ";
-    s += (digitalRead(OUTPIN_TRIAC))?"checked":"";
+    s += (state_dimmer)?"checked":"";
     s += ">TRIAC_ON<input type='radio' name='state_sw' value='0' ";
-    s += (digitalRead(OUTPIN_TRIAC))?"":"checked";
+    s += (state_dimmer)?"":"checked";
     s += ">TRIAC_OFF <input type='submit' value='Submit'></form></p>";  
-
-//    s += "SSR is now ";
-//    s += (digitalRead(OUTPIN_SSR))?"ON":"OFF";
-//    s += "<p>Change to <form action='gpio'><input type='radio' name='state_led' value='1' ";
-//    s += (digitalRead(OUTPIN_SSR))?"checked":"";
-//    s += ">SSR_ON <input type='radio' name='state_led' value='0' ";
-//    s += (digitalRead(OUTPIN_SSR))?"":"checked";
-//    s += ">SSR_OFF <input type='submit' value='Submit'></form></p>"; 
     
     s += "<p>Change to <form action='gpio' name='state' method='GET' oninput='showValue(state_dimmer.value)'><input type='range' name='state_dimmer' id='state_dimmer' min='0' max='90' step='5' value='0'  >" ; 
     s += "</form></p>";
@@ -362,37 +331,5 @@ void webHandleGpio(){
 }
 
 
-//void webHandleGpio(){
-//  String s;
-//   // Set GPIO according to the request
-//    if (server.arg("state_sw")=="1" || server.arg("state_sw")=="0" ) {
-//      int state_sw = server.arg("state_sw").toInt();
-//      digitalWrite(OUTPIN, state_sw);
-//      Serial.print("Light switched via web request to  ");      
-//      Serial.println(state_sw);      
-//    }
-//     if (server.arg("state_led")=="1" || server.arg("state_led")=="0" ) {
-//      int state_led = server.arg("state_led").toInt();
-//      digitalWrite(OUTLED, state_led);
-//      Serial.print("Light switched via web request to  ");      
-//      Serial.println(state_led);      
-//    }
-//    
-//    s = "Light is now ";
-//    s += (digitalRead(OUTPIN))?"on":"off";
-//    s += "<p>Change to <form action='gpio'><input type='radio' name='state_sw' value='1' ";
-//    s += (digitalRead(OUTPIN))?"checked":"";
-//    s += ">LIGHT_On<input type='radio' name='state_sw' value='0' ";
-//    s += (digitalRead(OUTPIN))?"":"checked";
-//    s += ">LIGHT_Off <input type='submit' value='Submit'></form></p>";   
-//
-//    s += "LED is now ";
-//    s += (digitalRead(OUTLED))?"ON":"OFF";
-//    s += "<p>Change to <form action='gpio'><input type='radio' name='state_led' value='1' ";
-//    s += (digitalRead(OUTLED))?"checked":"";
-//    s += ">LED_ON <input type='radio' name='state_led' value='0' ";
-//    s += (digitalRead(OUTLED))?"":"checked";
-//    s += ">LED_OFF <input type='submit' value='Submit'></form></p>"; 
-//    server.send(200, "text/html", s);    
-//}
+
 

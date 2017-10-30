@@ -29,7 +29,7 @@ void disconnectMQTT() {
 
 void mqtt_handler() {
   if (toPub == 1) {
-    Debugln("DEBUG: Publishing state via MWTT");
+    Debugln("DEBUG: Publishing state via MQTT");
     if (pubState()) {
       toPub = 0;
     }
