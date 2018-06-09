@@ -6,9 +6,9 @@ Hardware Version: 0.2
 USE Board as Node mcu 1.0 while compiling
 
 Code Edited By :Naren N Nayak
-Date: 01/03/2018
+Date: 09/06/2018
 Last Edited By:Naren N Nayak
-Date: 30/10/2017
+Date: 01/03/2018
 
  
  *  This sketch is running a web server for configuring WiFI if can't connect or for controlling of one GPIO to switch a light/LED
@@ -114,6 +114,16 @@ boolean wifiConnected = false;
 
 /*Alexa event names */
 String firstName;
+char string[32];
+char byteRead;
+String serialReceived="";
+String serialReceived_buf="";
+
+int dimmer_state;
+int New_dimmer_state;
+int mqtt_dimmer_state;
+volatile boolean mqtt_dimpub =false;
+
 //-------------- void's -------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
@@ -150,7 +160,7 @@ void setup() {
   Debugln(webtypeGlob);
   Debug("otaFlag:");
   Debugln(otaFlag);
-  Debugln("DEBUG: Starting the main loop");
+  Debugln("CONNECTED");
   //wifiConnected = 1;
   if(wifiConnected){
     server.on("/", HTTP_GET, [](){
@@ -207,19 +217,169 @@ void btn_handle()
 
 //-------------------------------- Main loop ---------------------------
 void loop() {
+
+     Serial.println("status:"); 
+          if(Serial.available())
+             {
+               size_t len = Serial.available();
+               uint8_t sbuf[len];
+               Serial.readBytes(sbuf, len); 
+               serialReceived = (char*)sbuf;
+               if(serialReceived.substring(0,2) == "D:")
+               {
+//               mqttClient.publish((char*)pubTopic.c_str(),serialReceived.substring(2,4).c_str());
+               serialReceived_buf = serialReceived;
+               serialReceived="";
+               dimmer_state = serialReceived_buf.substring(2,4).toInt();
+                   if(dimmer_state != New_dimmer_state)
+                   {
+                    New_dimmer_state = dimmer_state;
+                    mqtt_dimmer_state = dimmer_state;
+                    mqtt_dimpub = true;
+                    Serial.println(dimmer_state);
+                   }
+               serialReceived_buf="";
+               }  
+             }
+
+              if(mqtt_dimmer_state == 0 && mqtt_dimpub == true)
+                       {
+                        Serial.println("dimmer_state == 0");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS0");
+                        mqtt_dimpub = false;
+                       }
+                     else if((mqtt_dimmer_state >0 && mqtt_dimmer_state <= 5 )&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 5");
+                       mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS5");
+                       mqtt_dimpub = false; 
+                      }
+                      else if((mqtt_dimmer_state >5 && mqtt_dimmer_state <= 10) && mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 10");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS10");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >10 && mqtt_dimmer_state <= 15) && mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 15");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS15");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >15 && mqtt_dimmer_state <= 20) && mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 20");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS20");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >20 && mqtt_dimmer_state <= 25)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 25");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS25");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >25 && mqtt_dimmer_state <= 30)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 30");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS30");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >30 && mqtt_dimmer_state <= 35)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 35");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS35");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >35 && mqtt_dimmer_state <= 40)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 40");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS40");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >40 && mqtt_dimmer_state <= 45)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 45");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS45");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >45 && mqtt_dimmer_state <= 50)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 50");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS50");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >50 && mqtt_dimmer_state <= 55)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 55");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS55");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >55 && mqtt_dimmer_state <= 60)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 60");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS60");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >60 && mqtt_dimmer_state <= 65)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 65");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS65");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >65 && mqtt_dimmer_state <= 70)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 70");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS70");
+                        mqtt_dimpub = false;
+                      }
+                       else if((mqtt_dimmer_state >70 && mqtt_dimmer_state <= 75)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 75");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS75");
+                        mqtt_dimpub = false;
+                      }
+                        else if((mqtt_dimmer_state >75 && mqtt_dimmer_state <= 80)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 80");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS80");
+                        mqtt_dimpub = false;
+                      }
+                        else if((mqtt_dimmer_state >80 && mqtt_dimmer_state <= 85)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 85");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS85");
+                        mqtt_dimpub = false;
+                      }
+                        else if((mqtt_dimmer_state >85 && mqtt_dimmer_state <= 90)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 90");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS90");
+                        mqtt_dimpub = false;
+                      }
+                        else if((mqtt_dimmer_state >90 && mqtt_dimmer_state <= 95)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 95");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS95"); 
+                        mqtt_dimpub = false;
+                      }
+                        else if((mqtt_dimmer_state >95 && mqtt_dimmer_state <= 100)&& mqtt_dimpub == true)
+                      {
+                        Serial.println("dimmer_state == 100");
+                        mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS99");
+                        mqtt_dimpub = false;
+                        
+                      } 
+  
   //Debugln("DEBUG: loop() begin");
-  if(configToClear==1)
-  {
+  if(configToClear==1){
     //Debugln("DEBUG: loop() clear config flag set!");
     clearConfig()? Serial.println("Config cleared!") : Serial.println("Config could not be cleared");
     delay(1000);
     ESP.reset();
   }
   //Debugln("DEBUG: config reset check passed");  
-  if (WiFi.status() == WL_CONNECTED && otaFlag)
-  {
-    if(otaCount<=1) 
-    {
+  if (WiFi.status() == WL_CONNECTED && otaFlag){
+    if(otaCount<=1) {
       Serial.println("OTA mode time out. Reset!"); 
       setOtaFlag(0);
       ESP.reset();
@@ -227,12 +387,9 @@ void loop() {
     }
     server.handleClient();
     delay(1);
-  } 
-  else if (WiFi.status() == WL_CONNECTED || webtypeGlob == 1)
-  {
+  } else if (WiFi.status() == WL_CONNECTED || webtypeGlob == 1){
     //Debugln("DEBUG: loop() wifi connected & webServer ");
-    if (iotMode==0 || webtypeGlob == 1)
-    {
+    if (iotMode==0 || webtypeGlob == 1){
       //Debugln("DEBUG: loop() Web mode requesthandling ");
       server.handleClient();
       delay(1);
@@ -240,8 +397,7 @@ void loop() {
       {
         Scan_Wifi_Networks();
       }
-    } 
-    else if (iotMode==1 && webtypeGlob != 1 && otaFlag !=1){
+    } else if (iotMode==1 && webtypeGlob != 1 && otaFlag !=1){
           //Debugln("DEBUG: loop() MQTT mode requesthandling ");
           if (!connectMQTT()){
               delay(200);          
