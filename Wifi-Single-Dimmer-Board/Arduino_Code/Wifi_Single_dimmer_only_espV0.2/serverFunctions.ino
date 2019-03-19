@@ -225,7 +225,8 @@ void initWiFi(){
   Serial.println(esid);
   Debugln(epass);
   WiFi.begin((char*)esid.c_str(), (char*)epass.c_str());
-  if ( testWifi() == 20 ) { 
+  if ( testWifi() == 20 ) {
+     wifiConnected = 1;
       launchWeb(0);
       return;
   }

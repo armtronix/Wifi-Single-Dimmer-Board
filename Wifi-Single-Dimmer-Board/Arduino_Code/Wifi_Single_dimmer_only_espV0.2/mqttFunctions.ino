@@ -7,33 +7,33 @@ boolean connectMQTT() {
   Serial.print(mqttServer);
   Serial.print(" as ");
   Serial.println(host);
-  String temp_will_msg=(String)hostsaved+(String)mqtt_will_msg;  //added on 28/07/2017
-  
-if (mqttClient.connect(host,(char*)mqtt_user.c_str(),(char*)mqtt_passwd.c_str(),(char*)pubTopic.c_str(),0,0,(char*)temp_will_msg.c_str())) //added on 28/07/18
+  String temp_will_msg = (String)hostsaved + (String)mqtt_will_msg; //added on 28/07/2017
+
+  if (mqttClient.connect(host, (char*)mqtt_user.c_str(), (char*)mqtt_passwd.c_str(), (char*)pubTopic.c_str(), 0, 0, (char*)temp_will_msg.c_str())) //added on 28/07/18
   {
     Serial.println("Connected to MQTT broker with authentication");
-    if(mqttClient.subscribe((char*)subTopic.c_str()))
+    if (mqttClient.subscribe((char*)subTopic.c_str()))
     {
       Serial.println("Subsribed to topic.1");
-    } 
-    else 
+    }
+    else
     {
-      Serial.println("NOT subsribed to topic 1");      
+      Serial.println("NOT subsribed to topic 1");
     }
     mqttClient.loop();
 
 
     return true;
-   }  
+  }
   else if (mqttClient.connect(host))//added on 31/07/18
   {
     Serial.println("Connected to MQTT broker without authentication");
-    if(mqttClient.subscribe((char*)subTopic.c_str()))
+    if (mqttClient.subscribe((char*)subTopic.c_str()))
     {
       Serial.println("Subsribed to topic.1");
     }
-  } 
-  else 
+  }
+  else
   {
     Serial.println("MQTT connect failed! ");
     return false;
@@ -67,25 +67,25 @@ void mqtt_arrived(char* subTopic, byte* payload, unsigned int length) { // handl
   String msgString = String(buf);
   Serial.println(" message: " + msgString);
   if (msgString == "R13_ON") {
-    tarBrightness = 100;
-    count_regulator=tarBrightness;
+    tarBrightness = 255;
+    count_regulator = tarBrightness;
     Serial.print("Light is ");
     Serial.println(digitalRead(OUTPIN_TRIAC));
     Serial.print("Switching Triac to ");
     Serial.println("high");
-    //delay(7);//to solve on off bug solved 
+    //delay(7);//to solve on off bug solved
     //digitalWrite(OUTPIN_TRIAC, HIGH);
-  } 
-  else if (msgString == "R13_OFF") 
+  }
+  else if (msgString == "R13_OFF")
   {
-    tarBrightness =0;
-    count_regulator=tarBrightness;
+    tarBrightness = 0;
+    count_regulator = tarBrightness;
     Serial.print("Light is ");
     Serial.println(digitalRead(OUTPIN_TRIAC));
     Serial.print("Switching Triac to ");
     Serial.println("low");
   }
-  else if (msgString == "RST") 
+  else if (msgString == "Reset")
   {
     clearConfig();
     delay(10);
@@ -93,23 +93,23 @@ void mqtt_arrived(char* subTopic, byte* payload, unsigned int length) { // handl
     ESP.wdtDisable();
     ESP.restart();
   }
-    else if (msgString.substring(0,7) == "Dimmer:")//changed on 19/03/18
-  {  String dim_val_str = msgString;
-  
-    if(dim_val_str.substring(7,10).toInt()== 100)
-      {
-       tarBrightness = 100;
-       count_regulator=tarBrightness;
-      }
-    else 
-      {
-         tarBrightness =dim_val_str.substring(7,10).toInt();
-         count_regulator=tarBrightness;
-      }
+  else if (msgString.substring(0, 7) == "Dimmer:") //changed on 19/03/18
+  { String dim_val_str = msgString;
+      float mul = 2.55; //2.55;//  255/100 for values between 0-100
+      float bness = ((dim_val_str.substring(7, 10).toInt())* mul);
+      int ss = bness;
+      tarBrightness = ss;
+      count_regulator = tarBrightness;
   }
- } 
- 
-    
+  
+  if(msgString.substring(0, 6) == "Status")
+  {
+  mqtt_dimpub = true;
+  }
+
+}
+
+
 
 boolean pubState() { //Publish the current state of the light
   if (!connectMQTT()) {

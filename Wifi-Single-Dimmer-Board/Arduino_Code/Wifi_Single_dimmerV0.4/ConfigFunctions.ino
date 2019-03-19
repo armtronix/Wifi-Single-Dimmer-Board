@@ -34,10 +34,15 @@ bool loadConfig() {
   String pubTopicC = json["pubTopic"];
   String subTopicC = json["subTopic"];
   String mqttServerC = json["mqttServer"];
-  String mqtt_userC = json["mqtt_user"];//added on 28/07/2018
+  String mqtt_userC = json["mqtt_user"];      //added on 28/07/2018
   String mqtt_passwdC = json["mqtt_passwd"];//added on 28/07/2018
+  String mqtt_portC = json["mqtt_port"];  //added on 28/07/2018
+#ifdef ESPALEXA
   String firstNameC = json["firstName"];
-
+#endif
+#ifdef Dimmer_State
+  String DimmerStateC = json["DimmerState"];
+#endif  //Dimmer_State
   // Real world application would store these values in some variables for
   // later use.
   otaFlag = otaFlagC;
@@ -49,8 +54,15 @@ bool loadConfig() {
   mqttServer = mqttServerC;
   mqtt_user = mqtt_userC; //added on 28/07/2018
   mqtt_passwd = mqtt_passwdC; //added on 28/07/2018
+  mqtt_port = mqtt_portC; //added on 28/07/2018
+#ifdef ESPALEXA
   firstName = firstNameC;
-  Serial.print("otaFlag: "); 
+#endif
+#ifdef Dimmer_State
+  DimmerState = DimmerStateC;
+#endif  //Dimmer_State
+
+  Serial.print("otaFlag: ");
   Serial.println(otaFlag);
   Serial.print("esid: ");
   Serial.println(esid);
@@ -68,10 +80,20 @@ bool loadConfig() {
   Serial.println(mqtt_user);    //added on 28/07/2018
   Serial.print("mqtt_passwd: "); //added on 28/07/2018
   Serial.println(mqtt_passwd);  //added on 28/07/2018
-  Serial.print("Device Name: "); //added on 28/07/2018
-  Serial.println(firstName);  //added on 28/07/2018
+  Serial.print("mqtt_port: "); //added on 28/07/2018
+  Serial.println(mqtt_port);  //added on 28/07/2018
   Serial.print("esid: ");
   Serial.println(esid);
+
+
+#ifdef ESPALEXA
+  Serial.print("Device Name: ");
+  Serial.println(firstName);
+#endif
+#ifdef Dimmer_State
+  Serial.print("Dimmer:");
+  Serial.println(DimmerState);
+#endif  //Dimmer_State
   return true;
 }
 
@@ -87,7 +109,15 @@ bool saveConfig() {
   json["mqttServer"] = mqttServer;
   json["mqtt_user"] = mqtt_user; //added on 28/07/2018
   json["mqtt_passwd"] = mqtt_passwd; //added on 28/07/2018
+  json["mqtt_port"] = mqtt_port; //added on 28/07/2018
+
+#ifdef ESPALEXA
   json["firstName"] = firstName;
+#endif
+#ifdef Dimmer_State
+  json["DimmerState"] = DimmerState;
+#endif  //Dimmer_State
+
   File configFile = SPIFFS.open("/config.json", "w");
   if (!configFile) {
     Serial.println("Failed to open config file for writing");
@@ -99,15 +129,14 @@ bool saveConfig() {
 }
 
 
-void setOtaFlag(int intOta){
-  otaFlag=intOta;
+void setOtaFlag(int intOta) {
+  otaFlag = intOta;
   saveConfig();
   yield();
 }
 
-bool clearConfig(){
-    Debugln("DEBUG: In config clear!");
-    detachInterrupt(AC_ZERO_CROSS);
-    return SPIFFS.format();  
+bool clearConfig() {
+  Debugln("DEBUG: In config clear!");
+  return SPIFFS.format();
 }
 
