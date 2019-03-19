@@ -1,16 +1,4 @@
-/*
-Code for Wifi Single triac 2 amps mini board
-This code is for ESP8266
-Firmware Version: 0.2
-Hardware Version: 0.2
-USE Board as Node mcu 1.0 while compiling
-
-Code Edited By :Naren N Nayak
-Date: 09/06/2018
-Last Edited By:Naren N Nayak
-Date: 01/03/2018
-
- 
+/*ONLY ESP used NO Atmega328p for Dimming 
  *  This sketch is running a web server for configuring WiFI if can't connect or for controlling of one GPIO to switch a light/LED
  *  Also it supports to change the state of the light via MQTT message and gives back the state after change.
  *  The push button has to switch to ground. It has following functions: Normal press less than 1 sec but more than 50ms-> Switch light. Restart press: 3 sec -> Restart the module. Reset press: 20 sec -> Clear the settings in EEPROM
@@ -18,7 +6,11 @@ Date: 01/03/2018
  *    http://server_ip will give a config page with 
  *  While a WiFi config is set:
  *    http://server_ip/gpio -> Will display the GIPIO state and a switch form for it
- *    http://server_ip/gpio?state=0 -> Will change the GPIO directly and display the above aswell
+ *    http://server_ip/gpio?state_led=0 -> Will change the GPIO14 to Low (triggering the SSR) 
+ *    http://server_ip/gpio?state_led=1 -> Will change the GPIO14 to High (triggering the SSR)
+ *    http://server_ip/gpio?state_sw=0 -> Will change the GPIO13 to Low (triggering the TRIAC) 
+ *    http://server_ip/gpio?state_sw=1 -> Will change the GPIO13 to High ( triggering the TRIAC) 
+ *    http://server_ip/gpio?state_dimmer=value -> value has to be a number between 0-90 example  http://server_ip/gpio?state_dimmer=80 (triggering the TRIAC)
  *    http://server_ip/cleareeprom -> Will reset the WiFi setting and rest to configure mode as AP
  *  server_ip is the IP address of the ESP8266 module, will be 
  *  printed to Serial when the module is connected. (most likly it will be 192.168.4.1)
@@ -31,10 +23,13 @@ Date: 01/03/2018
  *  - https://gist.github.com/igrr/7f7e7973366fc01d6393
  *  - http://www.esp8266.com/viewforum.php?f=25
  *  - http://www.esp8266.com/viewtopic.php?f=29&t=2745
+ *  Dimmer Code with timer from https://github.com/nassir-malik/IOT-Light-Dimmer
  *  - And the whole Arduino and ESP8266 comunity
  */
-
+String VERSION=" V0.201";
 #define DEBUG
+#define ALEXAEN
+
 //#define WEBOTA
 //debug added for information, change this according your needs
 
@@ -50,42 +45,53 @@ Date: 01/03/2018
   #define Debugflush  {}
 #endif
 
+#ifdef ALEXAEN
 #include <Espalexa.h>
+#endif
+
+#include "hw_timer.h"  
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <WebSocketsServer.h>
+#include <Hash.h>
 //#include <EEPROM.h>
 #include <Ticker.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "FS.h"
 
+#ifdef ALEXAEN
+void firstLightChanged(uint8_t brightness);
+#endif
+
 extern "C" {
   #include "user_interface.h" //Needed for the reset command
 }
-
-//callback functions
-void firstLightChanged(uint8_t brightness);
 
 //***** Settings declare ********************************************************************************************************* 
 String hostName ="Armtronix"; //The MQTT ID -> MAC adress will be added to make it kind of unique
 int iotMode=0; //IOT mode: 0 = Web control, 1 = MQTT (No const since it can change during runtime)
 //select GPIO's
+
+const byte OUTPIN_TRIAC = 13; //output pin of Triac
+const byte  AC_ZERO_CROSS = 14;   // input to Opto Triac pin   
 #define INPIN 0  // input pin (push button)
+#define OUTPIN_SSR 12  //output pin of SSR
 #define RESTARTDELAY 3 //minimal time in sec for button press to reset
 #define HUMANPRESSDELAY 50 // the delay in ms untill the press should be handled as a normal push by human. Button debounce. !!! Needs to be less than RESTARTDELAY & RESETDELAY!!!
 #define RESETDELAY 20 //Minimal time in sec for button press to reset all settings and boot to config mode
-#define RESET_PIN 16   
+#define INPIN_REGULATOR 5  // input pin (push button)
 
 //##### Object instances ##### 
 MDNSResponder mdns;
 ESP8266WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
 WiFiClient wifiClient;
 PubSubClient mqttClient;
 Ticker btn_timer;
 Ticker otaTickLoop;
-Espalexa espalexa; 
 
 //##### Flags ##### They are needed because the loop needs to continue and cant wait for long tasks!
 int rstNeed=0;   // Restart needed to apply new settings
@@ -99,6 +105,7 @@ int otaCount=300; //imeout in sec for OTA mode
 int current; //Current state of the button
 
 unsigned long count = 0; //Button press time counter
+unsigned long count_regulator = 0; //Button press time counter
 String st; //WiFi Stations HTML list
 String state; //State of light
 char buf[40]; //For MQTT data recieve
@@ -109,33 +116,48 @@ String epass = "";
 String pubTopic;
 String subTopic;
 String mqttServer = "";
+String mqtt_user ="";
+String mqtt_passwd ="";
+char* mqtt_will_msg =" disconnected";
 const char* otaServerIndex = "<form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>";
+String hostsaved;
+
+#ifdef ALEXAEN
 boolean wifiConnected = false;
-
-/*Alexa event names */
 String firstName;
-char string[32];
-char byteRead;
-String serialReceived="";
-String serialReceived_buf="";
+Espalexa espalexa; 
+#endif
 
-int dimmer_state;
+// Dimmer://
+int button_press_flag =1;
+byte fade = 1;
+byte statem = 1;
+byte tarBrightness = 0;
+byte curBrightness = 0;
 int new_dimmer_state;
 int mqtt_dimmer_state;
 volatile boolean mqtt_dimpub =false;
+byte zcState = 0; // 0 = ready; 1 = processing;
+int max_brightness =255;
 
 //-------------- void's -------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
-  delay(10);
-  // prepare GPIOS
-  pinMode(RESET_PIN, OUTPUT); 
-  digitalWrite(RESET_PIN, HIGH); 
+  /*Defining inputs and outputs */
+  pinMode(OUTPIN_TRIAC, OUTPUT);
+  pinMode(OUTPIN_SSR, OUTPUT);
+  pinMode(AC_ZERO_CROSS, INPUT_PULLUP);
   pinMode(INPIN, INPUT_PULLUP);
-  //digitalWrite(OUTLED, HIGH);
+  delay(100);
+  /*For version control */
+  Serial.println("waiting.... ");
+  Serial.print("Software version: ");
+  Serial.println(VERSION);
+   
   btn_timer.attach(0.05, btn_handle);
   Debugln("DEBUG: Entering loadConfig()");
-  if (!SPIFFS.begin()) {
+  if (!SPIFFS.begin()) 
+  {
     Serial.println("Failed to mount file system");
   }
   
@@ -146,6 +168,7 @@ void setup() {
   String hostTemp=hostName;
   hostTemp.replace(":","-");
   host = (char*) hostTemp.c_str();
+  hostsaved=hostTemp;
   loadConfig();
   //loadConfigOld();
   Debugln("DEBUG: loadConfig() passed");
@@ -160,11 +183,15 @@ void setup() {
   Debugln(webtypeGlob);
   Debug("otaFlag:");
   Debugln(otaFlag);
-  Debugln("CONNECTED");
-  //wifiConnected = 1;
-  if(wifiConnected){
-    server.on("/", HTTP_GET, [](){
-    server.send(200, "text/plain", "This is an example index page your server may send.");
+  Debugln("DEBUG: Starting the main loop");
+
+#ifdef ALEXAEN
+  //Alexa Part
+   if(wifiConnected)
+   {
+    server.on("/", HTTP_GET, []()
+    {
+     server.send(200, "text/plain", "This is an example index page your server may send.");
     });
     server.on("/test", HTTP_GET, [](){
     server.send(200, "text/plain", "This is a second subpage you may have.");
@@ -178,25 +205,144 @@ void setup() {
     });
   }
   // Define your devices here.
-  espalexa.addDevice((char*)firstName.c_str(), firstLightChanged,0); //simplest definition, default state off
-
+  espalexa.addDevice((char*)firstName.c_str(), firstLightChanged); //simplest definition, default state off
   espalexa.begin(&server); //give espalexa a pointer to your server object so it can use your server instead of creating its own
+#endif  
+}
+
+
+void dimTimerISR() 
+{
+    if (fade == 1) {
+      if (curBrightness > tarBrightness || (statem == 0 && curBrightness > 0)) {
+        --curBrightness;
+      }
+      else if (curBrightness < tarBrightness && statem == 1 && curBrightness < max_brightness) {
+        ++curBrightness;
+      }
+    }
+    else {
+      if (statem == 1) {
+        curBrightness = tarBrightness;
+      }
+      else {
+        curBrightness = 0;
+      }
+    }
+    
+    if (curBrightness == 0) {
+      statem = 1;
+      digitalWrite(OUTPIN_TRIAC, 0);
+    }
+    else if (curBrightness == max_brightness) {
+      statem = 1;
+      digitalWrite(OUTPIN_TRIAC, 1);
+    }
+    else {
+      digitalWrite(OUTPIN_TRIAC, 1); //naren commented
+      
+    }
+    //Serial.println(curBrightness);
+    zcState = 0;
+}
+
+void zcDetectISR() 
+{
+  if (zcState == 0)
+  {
+    zcState = 1;
+  
+    if (curBrightness < max_brightness && curBrightness > 0) 
+    {
+      digitalWrite(OUTPIN_TRIAC, 0);
+      
+      int dimDelay = 35* (max_brightness - curBrightness);  //8050
+      hw_timer_arm(dimDelay);
+    }
+  }
 }
 
 void btn_handle()
 {
-  if(!digitalRead(INPIN)){
+if(count_regulator<=9)
+{
+  count_regulator=0;
+  tarBrightness =count_regulator;
+}
+
+if(!digitalRead(INPIN_REGULATOR))
+{
+  if(button_press_flag ==1)  
+{
+button_press_flag =0;
+if(count_regulator<=9)
+{
+tarBrightness =count_regulator+10;
+count_regulator=count_regulator+10;
+}
+else
+{
+count_regulator=count_regulator+20;
+tarBrightness =count_regulator;
+}
+if(count_regulator<=200)
+     {
+      Serial.print("Reg VAL:");
+      Serial.println(count_regulator);
+      Serial.print("Brig VAL:");
+      Serial.println(curBrightness);
+      Serial.println(button_press_flag);
+     }
+     else
+     {
+      count_regulator=0;
+     }
+}
+}
+else
+{
+  button_press_flag =1;
+  if (count_regulator > 1 && count_regulator < HUMANPRESSDELAY/5) 
+    { 
+    if(count_regulator<=200)
+     {
+      //Serial.println(count_regulator);
+     }
+     else
+     {
+      count_regulator=0;
+     }
+    }
+}
+  if(!digitalRead(INPIN))
+  {
     ++count; // one count is 50ms
-  } else {
-    if (count > 1 && count < HUMANPRESSDELAY/5) { //push between 50 ms and 1 sec      
+    
+  } 
+  else 
+  {
+    if (count > 1 && count < HUMANPRESSDELAY/5) 
+    {
+      //push between 50 ms and 1 sec      
       Serial.print("button pressed "); 
       Serial.print(count*0.05); 
       Serial.println(" Sec."); 
-      if(iotMode==1 && mqttClient.connected()){
-        toPub=1;        
-        Debugln("DEBUG: toPub set to 1");
-      }
-    } else if (count > (RESTARTDELAY/0.05) && count <= (RESETDELAY/0.05)){ //pressed 3 secs (60*0.05s)
+//    
+//      Serial.print("Light is ");
+//      Serial.println(digitalRead(OUTPIN_SSR));
+//      
+//      Serial.print("Switching light to "); 
+//      Serial.println(!digitalRead(OUTPIN_SSR));
+//      digitalWrite(OUTPIN_SSR, !digitalRead(OUTPIN_SSR)); 
+//      state = digitalRead(OUTPIN_SSR);
+//      if(iotMode==1 && mqttClient.connected())
+//      {
+//        toPub=1;        
+//        Debugln("DEBUG: toPub set to 1");
+//      }
+    } else if (count > (RESTARTDELAY/0.05) && count <= (RESETDELAY/0.05))
+    { 
+      //pressed 3 secs (60*0.05s)
       Serial.print("button pressed "); 
       Serial.print(count*0.05); 
       Serial.println(" Sec. Restarting!"); 
@@ -215,34 +361,22 @@ void btn_handle()
 
 
 
+
 //-------------------------------- Main loop ---------------------------
-void loop() {
+void loop() 
+{
+   webSocket.loop();
+if(iotMode==1 && mqttClient.connected())
+{ 
+ if(tarBrightness != new_dimmer_state)
+ {
+  new_dimmer_state =tarBrightness ;
+  mqtt_dimmer_state=tarBrightness ;
+  mqtt_dimpub = true;        
+  Debugln("DEBUG: toPub set to 1");
+ }
 
-     Serial.println("status:"); 
-          if(Serial.available())
-             {
-               size_t len = Serial.available();
-               uint8_t sbuf[len];
-               Serial.readBytes(sbuf, len); 
-               serialReceived = (char*)sbuf;
-               if(serialReceived.substring(0,2) == "D:")
-               {
-//               mqttClient.publish((char*)pubTopic.c_str(),serialReceived.substring(2,4).c_str());
-               serialReceived_buf = serialReceived;
-               serialReceived="";
-               dimmer_state = serialReceived_buf.substring(2,4).toInt();
-                   if(dimmer_state != new_dimmer_state)
-                   {
-                    new_dimmer_state = dimmer_state;
-                    mqtt_dimmer_state = dimmer_state;
-                    mqtt_dimpub = true;
-                    Serial.println(dimmer_state);
-                   }
-               serialReceived_buf="";
-               }  
-             }
-
-              if(mqtt_dimmer_state == 0 && mqtt_dimpub == true)
+                     if(mqtt_dimmer_state == 0 && mqtt_dimpub == true)
                        {
                         Serial.println("dimmer_state == 0");
                         mqttClient.publish((char*)pubTopic.c_str(),"DimmerIS0");
@@ -369,12 +503,16 @@ void loop() {
                         mqtt_dimpub = false;
                         
                       } 
+}
+  
+  
+  
   
   //Debugln("DEBUG: loop() begin");
   if(configToClear==1){
     //Debugln("DEBUG: loop() clear config flag set!");
     clearConfig()? Serial.println("Config cleared!") : Serial.println("Config could not be cleared");
-    delay(1000);
+   // delay(1000);
     ESP.reset();
   }
   //Debugln("DEBUG: config reset check passed");  
@@ -383,24 +521,24 @@ void loop() {
       Serial.println("OTA mode time out. Reset!"); 
       setOtaFlag(0);
       ESP.reset();
-      delay(100);
+     // delay(100);
     }
     server.handleClient();
-    delay(1);
+   // delay(1);
   } else if (WiFi.status() == WL_CONNECTED || webtypeGlob == 1){
     //Debugln("DEBUG: loop() wifi connected & webServer ");
     if (iotMode==0 || webtypeGlob == 1){
       //Debugln("DEBUG: loop() Web mode requesthandling ");
       server.handleClient();
-      delay(1);
-      if(esid != "" && WiFi.status() != WL_CONNECTED) //wifi reconnect part
+     // delay(1);
+       if(esid != "" && WiFi.status() != WL_CONNECTED) //wifi reconnect part
       {
         Scan_Wifi_Networks();
       }
     } else if (iotMode==1 && webtypeGlob != 1 && otaFlag !=1){
           //Debugln("DEBUG: loop() MQTT mode requesthandling ");
           if (!connectMQTT()){
-              delay(200);          
+            //  delay(200);          
           }                    
           if (mqttClient.connected()){            
               //Debugln("mqtt handler");
@@ -411,37 +549,38 @@ void loop() {
     }
   } else{
     Debugln("DEBUG: loop - WiFi not connected");  
-    delay(1000);
+    delay(100); //eariler it was 1000 changedon 14/03/19
     initWiFi(); //Try to connect again
   }
+#ifdef ALEXAEN
   espalexa.loop();
-   delay(1);
+#endif
+ delay(1);
     //Debugln("DEBUG: loop() end");
 }
 
 
+#ifdef ALEXAEN
 //our callback functions
-void firstLightChanged(uint8_t brightness) {
+void firstLightChanged(uint8_t brightness) 
+{
     Serial.println("Device 1 changed to ");
-    
-    //do what you need to do here
-
-    //EXAMPLE
-    if (brightness == 255) {
-      Serial.println("Dimmer:99");
-    }
-    else if (brightness == 0) {
-      Serial.println("Dimmer:0");
-    }
-    else if (brightness == 1) {
-      Serial.println("Dimmer:0");
-    }
+    if (brightness == 255) 
+     {
+       tarBrightness = 100;
+       count_regulator=tarBrightness;
+     }
+    else if(brightness == 0) 
+     {
+       tarBrightness = 0;
+       count_regulator=tarBrightness;
+     }
     else {
-      float mul=0.388;//  99/255 for values between 0-99
+      float mul=0.3921; //0.388;//  99/255 for values between 0-99
       float bness=(brightness*mul);
       int ss=bness;
-      Serial.print("Dimmer:"); 
-      Serial.println(ss);
+      tarBrightness =ss;
+      count_regulator=tarBrightness;
     }
 }
-
+#endif

@@ -421,8 +421,11 @@ void webHandleConfig(){
   s += "The following is not ready yet!</br>";
   s += "<label>IOT mode: </label><input type='radio' name='iot' value='0'> HTTP<input type='radio' name='iot' value='1' checked> MQTT</br>";
   s += "<label>MQTT Broker IP/DNS: </label><input name='host' length=15></br>";
+  s += "<label>MQTT User Name: </label><input name='mqtt_user' length=15></br>";
+  s += "<label>MQTT Password: </label><input name='mqtt_passwd' length=15></br>";
   s += "<label>MQTT Publish topic: </label><input name='pubtop' length=64></br>";
   s += "<label>MQTT Subscribe topic: </label><input name='subtop' length=64></br>";
+  s += "<label>Device Name: </label><input name='firstname' length=64></br>";
   s += "<input type='submit'></form></p>";
   s += "\r\n\r\n";
   Serial.println("Sending 200");  
@@ -469,6 +472,24 @@ void webHandleConfigSave(){
   mqttServer = (char*) server.arg("host").c_str();
   Serial.print("Got mqtt Server: ");
   Serial.println(mqttServer);
+
+  String qmqtt_user;//qmqtt_user
+  qmqtt_user = server.arg("mqtt_user");
+  qmqtt_user.replace("%2F", "/");
+  Serial.println("Got mqtt_user: " + qmqtt_user);
+  mqtt_user = (char*) qmqtt_user.c_str();
+
+  String qmqtt_passwd;//qmqtt_passwd
+  qmqtt_passwd = server.arg("mqtt_passwd");
+  qmqtt_passwd.replace("%2F", "/");
+  Serial.println("Got mqtt_passwd: " + qmqtt_passwd);
+  mqtt_passwd = (char*) qmqtt_passwd.c_str();
+
+  String qfirstname;
+  qfirstname = server.arg("firstname");
+  qfirstname.replace("%2F","/");
+  Serial.println("Got firstname: " + qfirstname);
+  firstName = (char*) qfirstname.c_str();
 
   Serial.print("Settings written ");
   saveConfig()? Serial.println("sucessfully.") : Serial.println("not succesfully!");;
@@ -529,9 +550,10 @@ void webHandleGpio(){
       Serial.println(state_led);      
     }
    if (server.arg("state_dimmer") !="") {
-      attachInterrupt(AC_ZERO_CROSS, zcDetectISR, RISING); 
+      //attachInterrupt(AC_ZERO_CROSS, zcDetectISR, RISING); 
       int state_dimmer = server.arg("state_dimmer").toInt();
       tarBrightness =server.arg("state_dimmer").toInt();
+      count_regulator=tarBrightness;
       //digitalWrite(BUILTIN_LED, state_led);
      // Serial.print("Light switched via web request to  ");      
       Serial.println(state_dimmer);   
@@ -600,14 +622,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
                 tarBrightness =dum1.substring(4).toInt();
                 count_regulator=tarBrightness;
             }
-           if(payload[2]=='2')
-            {
-              String dum2=(const char *)payload;
-              if(dum2.substring(4).toInt()==100)
-              digitalWrite(OUTPIN_SSR, HIGH);
-              else if(dum2.substring(4).toInt()==0)
-              digitalWrite(OUTPIN_SSR, LOW);
-            }
+//           if(payload[2]=='2')
+//            {
+//              String dum2=(const char *)payload;
+//              if(dum2.substring(4).toInt()==100)
+//              digitalWrite(OUTPIN_SSR, HIGH);
+//              else if(dum2.substring(4).toInt()==0)
+//              digitalWrite(OUTPIN_SSR, LOW);
+//            }
             break;
     }
  
