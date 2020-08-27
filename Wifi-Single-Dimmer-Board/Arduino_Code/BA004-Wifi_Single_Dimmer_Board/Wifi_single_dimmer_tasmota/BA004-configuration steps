@@ -1,0 +1,8 @@
+#BA012-WiFi-Single-Dimmer-Board
+
+
+Here,In Wifi eight relay board we have to upload the modified ESP8266 tasmota code. Now to configure it we have to follow the below steps:
+1. Get the IP address and open it in browser.
+2. Go to 'Configuration' and select 'configure module'.
+3. Now click on the drop down button in the module type.
+4. Select the module type 'ARMtronix_SD', and click save.    
